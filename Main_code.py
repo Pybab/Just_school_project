@@ -4,19 +4,25 @@ from firebase_config import db
 from firebase_admin import credentials, firestore
 import asyncio
 
-
 def All(page:ft.Page):
-    page.client_storage.clear()
+    def loading():
+        return ft.View(route="/loading",controls=[ft.Container(expand=True, alignment=ft.alignment.center,
+        content=ft.Column([ft.Text("Not Max", size=40), ft.Text("Загрузка чатов...", size = 20)],
+        alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20))])
+
     def check():
+        page.client_storage.set("STheme", True)
         chk = page.client_storage.get("chk_lgn")
         usname = page.client_storage.get("usname")
+        page.views.clear()
         if chk == None:
-            LogReg()
+            page.views.append(LogReg())
         else:
+            page.views.append(Main(usname))
             Main(usname)
+        page.update()
 
     def LogReg():
-        page.clean()
         page.title = "Вход/Регистрация"
         page.views.clear()
         
@@ -30,6 +36,7 @@ def All(page:ft.Page):
             if login.value == "" or pswd.value == "":
                 dop_txt.color = "red"
                 dop_txt.value = "Поля не могут быть пустыми!"
+                
             elif not dop_db.exists:
                 dop_txt.color = "red"
                 dop_txt.value = "Пользователь не существует."
@@ -39,16 +46,17 @@ def All(page:ft.Page):
                 dop_txt.value = "Неверный логин или пароль."
             elif dop_db.to_dict()["password"] == pswd.value:
                 page.client_storage.set("usname", login.value)
+                page.client_storage.set("chk_lgn", True)
                 dop_txt.color = "green"
                 dop_txt.value = "Успешный вход! Приложение сейчас запуститься..."
                 page.update()
                 usname = login.value
                 page.views.append(Main(usname))
-                page.update()
                 page.client_storage.set("chk_lgn", True)
             else:
                 dop_txt.color = "red"
                 dop_txt.value = "Неизвесная ошибка! Попробуйте повторить позднее"
+            page.update()
 
         LogBut = ft.ElevatedButton("Войти", width=300, on_click = login_db)
         Pcl = ft.TextButton("Нет аккаунта? Зарегистрироваться.", on_click=lambda e:opn_vw(e))
@@ -67,7 +75,6 @@ def All(page:ft.Page):
         def regs_view():
             reg_title = ft.Text("Зарегистрироваться", size = 30, weight = "bold")
             reg_login = ft.TextField(label = "Логин")
-            reg_phone = ft.TextField(label = "Номер телефона")
             reg_pswd1 = ft.TextField(label = "Пароль", password = True)
             reg_pswd2 = ft.TextField(label = "Подтвердите пароль", password = True)
             RegBut = ft.ElevatedButton("Зарегистрироваться", width = 300, on_click=lambda e: auth_db())
@@ -76,7 +83,7 @@ def All(page:ft.Page):
 
             def auth_db():
                 dop_db = db.collection(reg_login.value).document("info").get()
-                if  reg_login.value == "" or reg_phone.value == "" or reg_pswd1.value == "":
+                if  reg_login.value == "" or reg_pswd1.value == "":
                     dop.color = "red"
                     dop.value = "Поля не могут быть пустыми!"
                     page.update()
@@ -94,23 +101,19 @@ def All(page:ft.Page):
                     dop.color = "green"
                     dop.value = "Успешная регистрация! Приложение сейчас запуститься..."
                     page.update()
-                    db.collection(reg_login.value).document("info").set({"password":reg_pswd2.value, "PN":reg_phone.value})
+                    db.collection(reg_login.value).document("info").set({"password":reg_pswd2.value})
                     page.views.append(Main(usname))
                     chk = True
                     Main(usname)
                     
-
             return ft.View(route = "/reg",controls = [ft.Row([ft.Column([reg_title,
-                    reg_login, reg_phone, reg_pswd1, reg_pswd2, RegBut, bck_lgn, dop],horizontal_alignment = "center", spacing = 15)], alignment = "center")])
-
-
-            
+                    reg_login, reg_pswd1, reg_pswd2, RegBut, bck_lgn, dop],horizontal_alignment = "center", spacing = 15)], alignment = "center")])
+  
         page.views.append(lgn_view)
         page.update()
+        return lgn_view
     
-
     def Main(usname):
-        page.clean()
         page.title = "NotMax" #Этот бро реально не любит макс 💀
         us_nlc = None
 
@@ -120,49 +123,88 @@ def All(page:ft.Page):
         cntct = ft.Ref[ft.Column]()
 
         def settings():
-            return ft.View("/settings",
-                [ft.AppBar(title=ft.text("Настройки"))])
-
+            back_btn = ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda e: page.views.pop() and page.update())
+            set_txt = ft.Text(usname, size = 40)
+            log_txt = ft.TextButton("Выйти из аккаунта", on_click=lambda e: logout())
+            dvr = ft.VerticalDivider(width=1, color="White")
+            return ft.View("/settings", controls = [ft.Column([back_btn, set_txt, log_txt, dvr])])
+        def opn_settings():
+            page.views.append(settings())
+            page.update()
+        def logout():
+            page.client_storage.clear()
+            page.views.append(LogReg())
+            page.update()
+        
+        def search():
+            schB_btn = ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda e: page.views.pop() and page.update())
+            sch_txt = ft.Text("Найти пользователя", size = 25)
+            sch_ipt = ft.TextField(hint_text="Юзернейм пользователя", expand=True)
+            sch_btn = ft.IconButton(icon=ft.Icons.SEARCH, on_click=lambda e: sch())
+            err_txt = ft.Text("", color="red")
+            def sch():
+                if sch_ipt.value.strip() == "":
+                    err_txt.value = "Поле не может быть пустым"
+                    err_txt.update()
+                    return
+                for bird in db.collections():
+                    if sch_ipt.value.strip() == bird.id:
+                        user_slct_chat(sch_ipt.value.strip(), None)
+                        page.views.pop()
+                        page.update()
+                        return
+                    else:
+                        err_txt.value = "Пользователь не найден"
+                        page.update()
+            return ft.View("/search", controls=[ft.Row([schB_btn, sch_txt]), ft.Row([sch_ipt, sch_btn]), err_txt])
+        def opn_srch():
+            page.views.append(search())
+            page.update()
+            
         ignore = ["info"]
-
         def load_cht(e):
             cntct.current.controls.clear()
             dop = db.collection(usname).stream()
             for i in dop:
                 if i.id in ignore:
                     continue
-                cntct.current.controls.append(
-                    ft.TextButton(text = i.id, on_click=lambda e, name = i.id: user_slct_chat(name, []))
-                )
+                dop2 = db.collection(usname).document(i.id).get()
+                if dop2.exists:
+                    dop3 = dop2.to_dict()
+                    if dop3:
+                        last_key = sorted(dop3.keys(), key=float)[-1]
+                        last_msg = dop3[last_key]
+                    else:
+                        last_msg = ""
+                else:
+                    last_msg = ""
+                cntct.current.controls.append(ft.ListTile(ft.Text(i.id),subtitle=ft.Text(last_msg), on_click=lambda e, us = i.id:user_slct_chat(us, last_msg)))
             page.update()
+
 
 
         def user_slct_chat(us, lst_msg): #Обновление + ну тип если на чат кликаешь шаришь типо бро
             nonlocal us_nlc
             us_nlc = us
+            right_column.visible = True
+            right_column.update()
             sct_chat.current.controls.clear()
             sct_chat.current.controls.append(ft.Text(value=us, size=20, weight=ft.FontWeight.BOLD))
-            sct_chat.current.update()
-
+            page.update()
             msg_chat.current.controls.clear()
 
             Upd = db.collection(usname).document(us)
-
             def on_snapshot(doc_snapshot, changes, read_time):
                 msg_chat.current.controls.clear()
-                for doc in doc_snapshot:
-                    if doc.exists:
-                        data = doc.to_dict()
-                        for key, val in sorted(data.items()):
-                            msg_chat.current.controls.append(ft.Text(val))
+                for i in doc_snapshot:
+                    if i.exists:
+                        data = i.to_dict()
+                        if data:
+                            for key in sorted(data.keys(), key=float):
+                                msg_chat.current.controls.append(ft.Text(data[key], size = 15))
                 msg_chat.current.update()
-
-            # Ставим слушатель на обновления
             Upd.on_snapshot(on_snapshot)
-        
-        if not db.collection(usname).document("Избранное").get().exists: #Наитупейшая проверка наличия пользователя в системе
-            db.collection(usname).document("Избранное").set({})
-            db.collection("All_users").document(usname).set({})
+    
 
         
         async def send_msg(e): #короч функция отправки сообщений
@@ -175,26 +217,34 @@ def All(page:ft.Page):
                 page.controls.remove(omgtext)
                 page.update()
                 return
-            Okak = f"{usname} - {us_nlc}" #АААА МЕМЧИК ОКАК ОЧЕНЬ СМЕШНО 🤣🤣😂🤣🤣😃🤣😂🤣🤣🤣🤣🤣🤣🤣
-            print(usname, us_nlc)
-            db.collection(us_nlc).document(usname).set({Okak : msg_ipt.current.value}, merge=True) #База менов 💀💀💀💀
-            db.collection(usname).document(us_nlc).set({Okak : msg_ipt.current.value}, merge=True)
+            msg_text = msg_ipt.current.value
+            key = str(datetime.now().timestamp())
+            db.collection(us_nlc).document(usname).set({key: f"{usname}: {msg_text}"}, merge=True)
+            db.collection(usname).document(us_nlc).set({key: f"{usname}: {msg_text}"}, merge=True)
             msg_ipt.current.value = ""
+            msg_chat.current.controls.append(ft.Text(f"{usname}: {msg_text}"))
             page.update()
             
 
+        left_column = ft.Container(content=ft.Column([ft.Row([
+                ft.IconButton(icon=ft.Icons.MENU, on_click=lambda e: opn_settings()),
+                ft.Text("Not Max", size = 20),
+                ft.IconButton(icon=ft.Icons.SEARCH, on_click=lambda e: opn_srch())], spacing=5, alignment="spaceBetween"),
+                ft.Column(ref=cntct, scroll=ft.ScrollMode.AUTO, expand=True)], spacing=5),width=300,
+                border=ft.border.only(right=ft.border.BorderSide(1, ft.Colors.OUTLINE)))
 
-        left_column = ft.Container(content=ft.Column(ref=cntct, scroll=ft.ScrollMode.AUTO, expand=True),
-        border=ft.border.only(right=ft.border.BorderSide(1, ft.Colors.OUTLINE)))
 
-        right_column = ft.Container(content=ft.Column([
-                ft.Container(content=ft.Column(ref=sct_chat), padding=10, border=ft.border.only(bottom=ft.border.BorderSide(1, ft.Colors.OUTLINE))),
-                ft.Container(content=ft.Column(ref=msg_chat, scroll=ft.ScrollMode.AUTO, expand=True), padding=10, expand=True),
-                ft.Row([ft.TextField(ref=msg_ipt, expand=True, hint_text="Сообщение"),
-                ft.IconButton(icon=ft.Icons.SEND, on_click=send_msg)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)]),expand=True)
-        Main_view = ft.View(route = "/main", controls=[left_column, right_column])
+        right_column = ft.Container(visible=False, content = ft.Column([
+                ft.Container(content = ft.Column(ref=sct_chat), padding=10, border=ft.border.only(bottom=ft.border.BorderSide(1, ft.Colors.OUTLINE))),
+                ft.Container(content = ft.ListView(ref=msg_chat, auto_scroll=True, spacing=10, expand=True), padding=10, expand=True),
+                ft.Row([ft.TextField(ref = msg_ipt, expand = True, hint_text="Сообщение"),
+                ft.IconButton(icon = ft.Icons.SEND, on_click=send_msg)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)]),expand=True)
+
+        Main_view = ft.View(route="/main", controls=[ft.Row([left_column, right_column], expand=True)])
+
         load_cht(None)
         return Main_view  
+    page.views.append(loading())
+    page.update()
     check()
-
 ft.app(target=All)
