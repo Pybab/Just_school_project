@@ -1,5 +1,5 @@
 import flet as ft
-from datetime import datetime, time
+from datetime import datetime
 from firebase_config import db
 from firebase_admin import credentials, firestore
 import asyncio
@@ -114,10 +114,10 @@ def All(page:ft.Page):
         return lgn_view
     
     def Main(usname):
-        page.title = "NotMax" #Этот бро реально не любит макс 💀
+        page.title = "NotMax"
         us_nlc = None
 
-        sct_chat = ft.Ref() #Оно как бы есть, а как бы и нет
+        sct_chat = ft.Ref()
         msg_chat = ft.Ref[ft.Column]()
         msg_ipt = ft.Ref[ft.TextField]()
         cntct = ft.Ref[ft.Column]()
@@ -143,20 +143,29 @@ def All(page:ft.Page):
             sch_btn = ft.IconButton(icon=ft.Icons.SEARCH, on_click=lambda e: sch())
             err_txt = ft.Text("", color="red")
             def sch():
-                if sch_ipt.value.strip() == "":
-                    err_txt.value = "Поле не может быть пустым"
-                    err_txt.update()
+                ipt = sch_ipt.value.strip()
+                if not ipt:
+                    err_txt.value = "Поле не может быть пустым!"
+                    page.update()
                     return
-                for bird in db.collections():
-                    if sch_ipt.value.strip() == bird.id:
-                        user_slct_chat(sch_ipt.value.strip(), None)
-                        page.views.pop()
-                        page.update()
-                        return
-                    else:
-                        err_txt.value = "Пользователь не найден"
-                        page.update()
-            return ft.View("/search", controls=[ft.Row([schB_btn, sch_txt]), ft.Row([sch_ipt, sch_btn]), err_txt])
+                WhyNot = False
+                for ij in db.collections():
+                    if ipt == ij.id:
+                        WhyNot = True
+                        break
+                if ipt == usname:
+                    err_txt.value = "Это ваше имя пользователя!"
+                    page.update()
+                    return
+                if not WhyNot:
+                    err_txt.value = "Пользователя не существует!"
+                    page.update()
+                    return
+                user_slct_chat(ipt, None)
+                page.views.pop()
+                page.update()
+            
+            return ft.View("/search", controls=[ft.Column([ft.Row([schB_btn, sch_txt]), ft.Row([sch_ipt, sch_btn]), err_txt])])
         def opn_srch():
             page.views.append(search())
             page.update()
@@ -183,7 +192,7 @@ def All(page:ft.Page):
 
 
 
-        def user_slct_chat(us, lst_msg): #Обновление + ну тип если на чат кликаешь шаришь типо бро
+        def user_slct_chat(us, lst_msg):
             nonlocal us_nlc
             us_nlc = us
             right_column.visible = True
@@ -201,14 +210,14 @@ def All(page:ft.Page):
                         data = i.to_dict()
                         if data:
                             for key in sorted(data.keys(), key=float):
-                                msg_chat.current.controls.append(ft.Text(data[key], size = 15))
+                                msg_chat.current.controls.append(ft.Text(value=data[key], size = 15))
                 msg_chat.current.update()
             Upd.on_snapshot(on_snapshot)
     
 
         
-        async def send_msg(e): #короч функция отправки сообщений
-            if msg_ipt.current.value.strip() == "": #Проверка на то, чтобы соо было не пустое
+        async def send_msg(e):
+            if msg_ipt.current.value.strip() == "":
                 text = ft.Text("Сообщение пустое!", size=20)
                 omgtext = ft.Row([text], alignment=ft.MainAxisAlignment.CENTER)
                 page.add(omgtext)
